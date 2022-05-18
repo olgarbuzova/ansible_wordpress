@@ -1,0 +1,47 @@
+---
+- name: Services
+  hosts: servers
+  tasks:
+    - name: Set DNS addresses on the adapter named Ethernet
+      ansible.windows.win_dns_client:
+        adapter_names: Ethernet
+        dns_servers: 
+          - 127.0.0.1
+          - 192.168.1.1
+
+    - name: Change the hostname
+      ansible.windows.win_hostname:
+        name: "{{ inventory_hostname }}"
+      register: hostname_change
+
+    - name: Reboot computer
+      ansible.windows.win_reboot:
+      when: hostname_change.reboot_required
+
+    - name: Create new Windows domain in a new forest with specific parameters
+      ansible.windows.win_domain:
+        create_dns_delegation: no
+        dns_domain_name: my.home.by
+        domain_netbios_name: MY
+        safe_mode_password: WSadmin19AD
+        domain_mode: Win2012R2
+        forest_mode: Win2012R2
+      register: domain_install
+
+    - name: Reboot computer
+      ansible.windows.win_reboot:
+      when: domain_install.reboot_required
+
+    - name: Ensure primary zone is present
+      community.windows.win_dns_zone:
+        name: 1.168.192.in-addr.arpa
+        replication: domain
+        type: primary
+        state: present
+
+    - name: Create matching PTR record
+      community.windows.win_dns_record:
+        name: "{{ (ansible_ip_addresses | select('match', '\\d*\\.\\d*\\.\\d*\\.\\d*') | list | first).split('.')[3] }}"
+        type: PTR
+        value: "{{ inventory_hostname }}.my.home.by"
+        zone: 1.168.192.in-addr.arpa

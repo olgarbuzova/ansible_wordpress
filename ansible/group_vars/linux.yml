@@ -1,0 +1,3 @@
+ansible_user: olga
+ansible_password: WinSrv19
+ansible_sudo_pass: WinSrv19

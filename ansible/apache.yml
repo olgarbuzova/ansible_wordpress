@@ -1,0 +1,12 @@
+---
+- name: Install Apache
+  hosts: linux
+  become: yes
+  tasks:
+    - include: update_os.yml
+    - name: Install Apache
+      apt:
+        name: apache2
+        state: absent
+        update_cache: yes
+        

@@ -1,0 +1,34 @@
+---
+#- name: Add a user
+#  hosts: linux
+#  become: true
+#  tasks:
+#      - name: Add the user "user1"
+#        ansible.builtin.user:
+#          name: "user1"
+#          comment: John Doe
+#- name: Add a user
+#  hosts: clients
+#  tasks:
+#    - name: Add the user "user2"
+#      ansible.windows.win_user:
+#        name: user2
+#        description: Katya Boo
+#        state: present
+
+- name: Remove users
+  hosts: linux
+  become: true
+  tasks:
+    - name: Remove the user 'user1'
+      ansible.builtin.user:
+        name: user1
+        state: absent
+        remove: yes
+- name: Ensure users
+  hosts: clients
+  tasks:
+    - name: Ensure "user2" is absent
+      ansible.windows.win_user:
+        name: user2
+        state: absent        

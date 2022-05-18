@@ -1,0 +1,166 @@
+---
+# - name: Update linux servers
+#   hosts: linux
+#   become: true
+#   tasks:
+#    - name: Ensure file /opt/test exists
+#      ansible.builtin.copy:
+#        content: test
+#        dest: /opt/test
+#        owner: root
+#        group: root
+#        mode: '0644'
+
+# - name: Update windows servers
+#   hosts: windows
+#   tasks:
+#    - name: Ensure file C:\Temp\test exits
+#      ansible.windows.win_file:
+#        path: C:\Temp
+#        state: directory
+
+#    - name: Ensure file C:\Temp\test exits
+#      ansible.windows.win_copy:
+#        content: test
+#        dest: C:\Temp\test
+
+- name: Install WordPress on Ubuntu Linux with Apache
+  hosts: linux
+  become: true
+  tasks:
+    - name: Install Apache and PHP
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      with_items:
+        - apache2
+        - ghostscript
+        - libapache2-mod-php 
+        - php 
+        - php-bcmath
+        - php-curl
+        - php-imagick
+        - php-intl
+        - php-json
+        - php-mbstring
+        - php-mysql
+        - php-xml
+        - php-zip
+
+# запуск Apache при запуске сервера
+    - name: Enable Apache
+      ansible.builtin.service:
+        name: apache2
+        enabled: yes
+
+# установка базы данных MariaDB
+    - name: Install MariaDB 
+      apt:
+        name: 
+          - mariadb-server
+          - mariadb-client
+        state: present
+
+    - name: Ensure MariaDB always starts
+      ansible.builtin.service:
+        name: mariadb
+        enabled: yes
+
+# конфигурация и ответы на вопросы для mysql_secure_installation
+    - name: Configure SQL
+      shell: |
+        sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF | mysql_secure_installation
+            # current root password (emtpy after installation)
+          y # Set root password?
+          root2022 # new root password
+          root2022 # new root password
+          y # Remove anonymous users?
+          y # Disallow root login remotely?
+          y # Remove test database and access to it?
+          y # Reload privilege tables now?
+        EOF
+
+# создание директории для WordPress, установка WordPress
+    - name: Create the directory /srv/www
+      ansible.builtin.file:
+        path: /srv/www
+        owner: www-data
+        state: directory
+        mode: '0755'   
+
+    - name: Download files from wordpress.org
+      get_url:
+        url: https://wordpress.org/latest.tar.gz
+        dest: /tmp/latest.tar.gz
+
+    - name: Unpack
+      ansible.builtin.unarchive:
+        src: /tmp/latest.tar.gz
+        dest: /srv/www
+        remote_src: yes  # указывает, что файл находится на удаленнои компьютере, а не намашине где ansible
+
+#  конфигурация Apach для WordPress, использование готового файла
+    - name: Configure Apache for WordPress
+      ansible.builtin.copy:
+        src: wordpress.conf
+        dest: /etc/apache2/sites-available/wordpress.conf
+
+# создание линки на файл
+    - name: Enable wordpress site
+      ansible.builtin.file:
+        src: /etc/apache2/sites-available/wordpress.conf
+        dest: /etc/apache2/sites-enabled/wordpress.conf
+        state: link
+
+# удаление файла, который включает сайт
+    - name: Disable default site
+      ansible.builtin.file:
+        path: /etc/apache2/sites-enabled/000-default.conf
+        state: absent 
+
+    - name: Enable the Apache2 module rewrite
+      community.general.apache2_module:
+        state: present
+        name: rewrite
+
+    - name: Reload service Apache2
+      ansible.builtin.service:
+        name: apache2
+        state: reloaded
+
+# настройка базы данных
+    - name: Ensure PIP installed
+      apt:
+        name: python3-pip
+
+    - name: Make sure pymysql is present
+      pip:
+        name: pymysql
+        state: present
+
+    - name: Create a new database wordpress
+      community.mysql.mysql_db:
+        name: "{{ wp_database }}"
+        login_user: root                               # без этих параметров выдается ошибка
+        login_unix_socket: /var/run/mysqld/mysqld.sock # без этих параметров выдается ошибка
+        state: present   
+
+    - name: Create database user and password with all database privileges
+      community.mysql.mysql_user:
+        name: "{{ wp_database_admin }}"
+        password: "{{ wp_database_password }}"
+        login_user: root                               # без этих параметров выдается ошибка
+        login_unix_socket: /var/run/mysqld/mysqld.sock # без этих параметров выдается ошибка
+        priv: '*.*:ALL'
+        state: present             
+
+# Конфигурация файла wp-config.php
+# Был создан файл wp-config.php.j2 с переменными
+# Для перемкнных был создан файл all.yml
+    - name: Confiure WordPress config
+      ansible.builtin.template:
+        src: wp-config.php.j2
+        dest: /srv/www/wordpress/wp-config.php
+        owner: www-data
+        group: www-data

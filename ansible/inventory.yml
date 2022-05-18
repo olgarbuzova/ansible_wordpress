@@ -1,0 +1,16 @@
+linux:
+  hosts:
+    lin-3:
+      ansible_host: lin-3.home.local
+windows:
+  children:
+    servers:
+      hosts:
+        win-srv-1:
+          ansible_host: win-srv-1.home.local
+    clients:
+      hosts:
+        win-2:
+          ansible_host: win-2.home.local
+
+
